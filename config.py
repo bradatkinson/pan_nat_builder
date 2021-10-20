@@ -13,6 +13,11 @@ paloalto = {
     'firewall_ip': ['<IP_ADDRESS>']
     }
 
+# DEVICE GROUP
+# The name of the Panorama Device Group where you want the NAT policy created
+
+device_group = '<DEVICE_GROUP>'
+
 # NAT CONFIGURATION
 # The NAT policy options are below.  Some configuration items have multiple
 # options to select from and are listed to provide assistance.

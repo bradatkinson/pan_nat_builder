@@ -4,32 +4,128 @@
 #    DATE: 9/29/2021
 # PURPOSE: To aid in the build out of NAT policies
 
+import sys
 from panos import base
+from panos import panorama
 from panos import policies
 import config
 
 
-def connect_device():
-    """Connect To Device
-    
+def find_active_device():
+    """Find Active Device
+
     Returns:
-        fw_conn (PanDevice): A panos object for device
+        pano_ip (str): The IP address of the active Panorama
     """
-    fw_ip = config.paloalto['fw_ip']
+    print('Finding the active Panorama...')
+    pano1_ip = config.paloalto['panorama_ip'][0]
+    pano1_conn = connect_device(pano1_ip)
+    pano1_results = check_ha_status(pano1_conn)
+    pano1_state = process_ha_status(pano1_results)
+
+    pano2_ip = config.paloalto['panorama_ip'][1]
+    pano2_conn = connect_device(pano2_ip)
+    pano2_results = check_ha_status(pano2_conn)
+    pano2_state = process_ha_status(pano2_results)
+
+    active_tuple = ('active', 'active-primary', 'primary-active')
+    if pano1_state in active_tuple:
+        pano_ip = pano1_ip
+        pano_conn = pano1_conn
+    elif pano2_state in active_tuple:
+        pano_ip = pano2_ip
+        pano_conn = pano2_conn
+    else:
+        print("-- Couldn't find the active Panorama.\n", file=sys.stderr)
+        sys.exit(1)
+
+    pano_conn = connect_device(pano_ip)
+    results = get_system_info(pano_conn)
+    hostname = get_hostname(results)
+    print('-- Connected to the active Panorama: {}\n'.format(hostname))
+    return pano_conn
+
+
+def check_ha_status(pano_conn):
+    """Check HA Status
+
+    Args:
+        pano_conn (PanDevice): A panos object for device
+
+    Returns:
+        results (Element): XML results from firewall
+    """
+    command = ('<show><high-availability><state>'
+               '</state></high-availability></show>')
+    results = pano_conn.op(cmd=command, cmd_xml=False)
+    return results
+
+
+def process_ha_status(results):
+    """Process HA Status
+
+    Args:
+        results (Element): XML results from firewall
+
+    Returns:
+        ha_status (str): A string containing the HA state
+    """
+    ha_status = results.find('./result/local-info/state').text
+    return ha_status
+
+
+def connect_device(pano_ip):
+    """Connect To Device
+
+    Args:
+        pano_ip (str): A string containing the Panorama IP address
+
+    Returns:
+        pano_conn (PanDevice): A panos object for device
+    """
     username = config.paloalto['username']
     password = config.paloalto['password']
-    fw_conn = base.PanDevice.create_from_device(
-        hostname=fw_ip,
+    pano_conn = base.PanDevice.create_from_device(
+        hostname=pano_ip,
         api_username=username,
         api_password=password)
-    return fw_conn
+    return pano_conn
 
 
-def print_policies(fw_conn):
-    rulebase = policies.Rulebase()
-    fw_conn.add(rulebase)
-    list_of_rules = policies.NatRule.refreshall(rulebase)
+def get_system_info(pano_conn):
+    """Get Show System Info
 
+    Args:
+        pano_conn (PanDevice): A panos object for device
+
+    Returns:
+        results (Element): XML results from firewall
+    """
+    results = pano_conn.op(cmd='show system info')
+    return results
+
+
+def get_hostname(results):
+    """Get Hostname
+
+    Args:
+        results (Element): XML results from firewall
+
+    Returns:
+        hostname (str): A string containing the hostname
+    """
+    hostname = results.find('./result/system/hostname').text
+    return hostname
+
+
+def print_policies(pano_conn):
+    devicegroup = panorama.DeviceGroup(config.device_group)
+    pano_conn.add(devicegroup)
+    prerulebase = policies.PreRulebase()
+    devicegroup.add(prerulebase)
+    list_of_rules = policies.NatRule.refreshall(prerulebase)
+
+    print('NAT policies:')
     for rule in list_of_rules:
         print(rule)
     print("\r")
@@ -112,8 +208,8 @@ def dst_dynamic_ip():
 def main():
     """Function Calls
     """
-    fw_conn = connect_device()
-    print_policies(fw_conn)
+    pano_conn = find_active_device()
+    print_policies(pano_conn)
 
     nat = config.nat
     if nat == 'src_static_ip':
@@ -125,14 +221,16 @@ def main():
     elif nat == 'dst_dynamic_ip':
         desired_rule_params = dst_dynamic_ip()
 
-    rulebase = policies.Rulebase()
-    fw_conn.add(rulebase)
-    policies.NatRule.refreshall(rulebase)
+    devicegroup = panorama.DeviceGroup(config.device_group)
+    pano_conn.add(devicegroup)
+    prerulebase = policies.PreRulebase()
+    devicegroup.add(prerulebase)
+    policies.NatRule.refreshall(prerulebase)
     new_rule = policies.NatRule(**desired_rule_params)
-    rulebase.add(new_rule)
+    prerulebase.add(new_rule)
     new_rule.create()
 
-    print_policies(fw_conn)
+    print_policies(pano_conn)
 
 
 if __name__ == '__main__':
