@@ -205,6 +205,18 @@ def dst_dynamic_ip():
     return desired_rule_params
 
 
+def create_nat(pano_conn, desired_rule_params):
+    devicegroup = panorama.DeviceGroup(config.device_group)
+    pano_conn.add(devicegroup)
+    prerulebase = policies.PreRulebase()
+    devicegroup.add(prerulebase)
+    policies.NatRule.refreshall(prerulebase)
+    new_rule = policies.NatRule(**desired_rule_params)
+    prerulebase.add(new_rule)
+    new_rule.create()
+    print("\rNAT Policy '{}' was added to {}\n".format(config.name, config.device_group))
+
+
 def main():
     """Function Calls
     """
@@ -221,15 +233,7 @@ def main():
     elif nat == 'dst_dynamic_ip':
         desired_rule_params = dst_dynamic_ip()
 
-    devicegroup = panorama.DeviceGroup(config.device_group)
-    pano_conn.add(devicegroup)
-    prerulebase = policies.PreRulebase()
-    devicegroup.add(prerulebase)
-    policies.NatRule.refreshall(prerulebase)
-    new_rule = policies.NatRule(**desired_rule_params)
-    prerulebase.add(new_rule)
-    new_rule.create()
-
+    create_nat(pano_conn, desired_rule_params)
     print_policies(pano_conn)
 
 

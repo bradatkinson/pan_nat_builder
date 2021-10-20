@@ -1,5 +1,6 @@
 2021-10-20
 - Update script to configure through Panorama
+- Move create NAT section into function
 
 2021-10-05
 - Initial commit
