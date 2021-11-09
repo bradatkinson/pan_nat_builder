@@ -1,3 +1,9 @@
+2021-11-09
+- Update docstring documentation
+- Add section for partial commit to Panorama for specific admin
+- Add validation checks such as does policy name already exist or does source
+  and destination IP addresses match existing policy
+
 2021-10-20
 - Update script to configure through Panorama
 - Move create NAT section into function

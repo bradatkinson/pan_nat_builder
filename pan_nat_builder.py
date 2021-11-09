@@ -118,20 +118,35 @@ def get_hostname(results):
     return hostname
 
 
-def print_policies(pano_conn):
+def get_policies(pano_conn):
+    """Get NAT Policies
+
+    Args:
+        pano_conn (PanDevice): A panos object for device
+
+    Returns:
+        policy_dict (dict): A dictionary containing NAT policy info
+    """
+    print('Gathering existing NAT policies...')
     devicegroup = panorama.DeviceGroup(config.device_group)
     pano_conn.add(devicegroup)
     prerulebase = policies.PreRulebase()
     devicegroup.add(prerulebase)
     list_of_rules = policies.NatRule.refreshall(prerulebase)
 
-    print('NAT policies:')
+    policy_dict = {}
     for rule in list_of_rules:
-        print(rule)
-    print("\r")
+        policy_dict[rule.name.lower()] = {'src_zone': rule.fromzone, 'dst_zone': rule.tozone, 'source': rule.source, 'destination': rule.destination, 'service': rule.service}
+
+    return policy_dict
 
 
 def src_static_ip():
+    """Source Static IP NAT
+
+    Returns:
+        desired_rule_params (dict): A dictionary containing NAT rule parameters
+    """
     desired_rule_params = {
         "name": config.name,
         "description": config.description,
@@ -151,6 +166,11 @@ def src_static_ip():
 
 
 def src_dynamic_ip():
+    """Source Dynamic IP NAT
+
+    Returns:
+        desired_rule_params (dict): A dictionary containing NAT rule parameters
+    """
     desired_rule_params = {
         "name": config.name,
         "description": config.description,
@@ -169,6 +189,11 @@ def src_dynamic_ip():
 
 
 def dst_static_ip():
+    """Destination Static IP NAT
+
+    Returns:
+        desired_rule_params (dict): A dictionary containing NAT rule parameters
+    """
     desired_rule_params = {
         "name": config.name,
         "description": config.description,
@@ -187,6 +212,11 @@ def dst_static_ip():
 
 
 def dst_dynamic_ip():
+    """Destination Dynamic IP NAT
+
+    Returns:
+        desired_rule_params (dict): A dictionary containing NAT rule parameters
+    """
     desired_rule_params = {
         "name": config.name,
         "description": config.description,
@@ -206,6 +236,13 @@ def dst_dynamic_ip():
 
 
 def create_nat(pano_conn, desired_rule_params):
+    """Create NAT Policy
+
+    Args:
+        pano_conn (PanDevice): A panos object for device
+        desired_rule_params (dict): A dictionary containing NAT rule parameters
+    """
+    print('\nCreating new NAT policy...')
     devicegroup = panorama.DeviceGroup(config.device_group)
     pano_conn.add(devicegroup)
     prerulebase = policies.PreRulebase()
@@ -214,14 +251,43 @@ def create_nat(pano_conn, desired_rule_params):
     new_rule = policies.NatRule(**desired_rule_params)
     prerulebase.add(new_rule)
     new_rule.create()
-    print("\rNAT Policy '{}' was added to {}\n".format(config.name, config.device_group))
+    print("\r-- NAT Policy '{}' was added to {}\n".format(config.name, config.device_group))
+
+
+def commit_config(pano_conn):
+    """Commit Config
+
+    Args:
+        pano_conn (PanDevice): A panos object for device
+    """
+    print('Committing config...')
+
+    admin = config.paloalto['username']
+    device_group = config.device_group
+    command = ("<commit><partial><admin><member>{}</member></admin>"
+               "<device-group><member>{}</member></device-group>"
+               "<no-template/><no-template-stack/>"
+               "<no-log-collector-group/><no-log-collector/>"
+               "<device-and-network>excluded</device-and-network>"
+               "<shared-object>excluded</shared-object></partial>"
+               "<description>Add New NAT Policy</description>"
+               "</commit>".format(admin, device_group))
+    results = pano_conn.commit(sync=True, cmd=command)
+
+    print('-- Commit Status:\n')
+    messages = results.get('messages')
+    if isinstance(messages, list):
+        for message in messages:
+            print('{}\n'.format(message))
+    else:
+        print(messages)
 
 
 def main():
     """Function Calls
     """
     pano_conn = find_active_device()
-    print_policies(pano_conn)
+    policy_dict = get_policies(pano_conn)
 
     nat = config.nat
     if nat == 'src_static_ip':
@@ -233,8 +299,25 @@ def main():
     elif nat == 'dst_dynamic_ip':
         desired_rule_params = dst_dynamic_ip()
 
-    create_nat(pano_conn, desired_rule_params)
-    print_policies(pano_conn)
+    if config.name.lower() not in policy_dict.keys():
+        for policy in policy_dict:
+            policy_details = policy_dict.get(policy)
+            source = policy_details.get('source')
+            destination = policy_details.get('destination')
+            if config.source == source and config.destination == destination:
+                print('-- A NAT policy already exists that matches this criteria.')
+                print('---- Check: {}'.format(policy))
+                need_nat = False
+                break
+            else:
+                need_nat = True
+    else:
+        print('-- A NAT policy with this name already exists.')
+        need_nat = False
+
+    if need_nat:
+        create_nat(pano_conn, desired_rule_params)
+        commit_config(pano_conn)
 
 
 if __name__ == '__main__':
