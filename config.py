@@ -53,12 +53,12 @@ disabled = True
 nat = '<NAT_OPTION>'
 
 # SOURCE STATIC IP
-source_translation_type = 'static-ip'
+src_static_translation_type = 'static-ip'
 source_translation_static_translated_address = '<IP_ADDRESS>'
 source_translation_static_bi_directional = False
 
 # SOURCE DYNAMIC IP
-source_translation_type = 'dynamic-ip'
+src_dynamic_translation_type = 'dynamic-ip'
 source_translation_translated_addresses = ['<IP_ADDRESS>']
 
 # DESTINATION STATIC IP

@@ -157,7 +157,7 @@ def src_static_ip():
         "service": config.service,
         "source": config.source,
         "destination": config.destination,
-        "source_translation_type": config.source_translation_type,
+        "source_translation_type": config.src_static_translation_type,
         "source_translation_static_translated_address": config.source_translation_static_translated_address,
         "source_translation_static_bi_directional": config.source_translation_static_bi_directional,
         "disabled": config.disabled
@@ -181,7 +181,7 @@ def src_dynamic_ip():
         "service": config.service,
         "source": config.source,
         "destination": config.destination,
-        "source_translation_type": config.source_translation_type,
+        "source_translation_type": config.src_dynamic_translation_type,
         "source_translation_translated_addresses": config.source_translation_translated_addresses,
         "disabled": config.disabled
     }
